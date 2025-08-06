@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 import uuid
 import os
+import tempfile
 from utils.s3 import download_pdf_from_s3
 from utils.pdf_extractor import extract_text_from_pdf
 from utils.claude_validator import ClaudeValidator
@@ -16,7 +17,7 @@ S3_BUCKET = "ils-rule-documents"
 RULES_KEY = "EXIM Rules for AI Model.pdf"
 
 # Initialize Claude validator using Bedrock (no API key needed with IAM roles)
-claude_validator = ClaudeValidator(region_name="us-east-1")
+claude_validator = ClaudeValidator(region_name="us-east-1", profile_name="mainils") #change profile name to None
 
 # Cache for rules to avoid repeated S3 downloads
 _cached_rules_text = None
@@ -26,9 +27,10 @@ async def get_rules_text() -> str:
     global _cached_rules_text
     
     if _cached_rules_text is None:
-        rules_path = f"/tmp/exim_rules_{uuid.uuid4()}.pdf"
+        temp_dir = tempfile.gettempdir()
+        rules_path = os.path.join(temp_dir, f"exim_rules_{uuid.uuid4()}.pdf")
         try:
-            download_pdf_from_s3(S3_BUCKET, RULES_KEY, rules_path)
+            download_pdf_from_s3(S3_BUCKET, RULES_KEY, rules_path, profile_name="mainils") #change profile name to None
             _cached_rules_text = extract_text_from_pdf(rules_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to download or parse rules: {str(e)}")
@@ -58,7 +60,8 @@ async def submit_claim(file: UploadFile = File(..., description="PDF file contai
             raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB")
         
         # Save uploaded user form
-        user_form_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
+        temp_dir = tempfile.gettempdir()
+        user_form_path = os.path.join(temp_dir, f"{uuid.uuid4()}_{file.filename}")
         with open(user_form_path, "wb") as f:
             f.write(contents)
 

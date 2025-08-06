@@ -3,11 +3,12 @@ from typing import Dict, List, Any
 import boto3
 
 class ClaudeValidator:
-    def __init__(self, region_name: str = "us-east-1"):
+    def __init__(self, region_name: str = "us-east-1", profile_name: str = None):
         """
         Initialize Claude validator using AWS Bedrock with IAM roles.
         """
-        self.client = boto3.client("bedrock-runtime", region_name=region_name)
+        session = boto3.Session(profile_name=profile_name) if profile_name else boto3.Session()
+        self.client = session.client("bedrock-runtime", region_name=region_name)
         self.model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
         
     def _invoke_claude(self, messages: List[Dict], max_tokens: int = 4000, temperature: float = 0.1) -> str:
