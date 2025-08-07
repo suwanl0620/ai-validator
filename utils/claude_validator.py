@@ -50,76 +50,126 @@ class ClaudeValidator:
         except Exception as e:
             raise Exception(f"Bedrock API error: {str(e)}")
         
-    def validate_application_against_rules(
-        self, 
-        application_text: str, 
-        rules_text: str,
-        claim_type: str = "insurance claim"
-    ) -> Dict[str, Any]:
+    def validate_multiple_documents(self, claim_type, rules_text, documents_dict):
         """
-        Use Claude 3.7 via Bedrock to compare application against rules and return validation results.
+        Validate multiple documents against rules and return individual + overall reports
+        
+        Args:
+            claim_type: Type of claim being validated
+            rules_text: The rules document text
+            documents_dict: Dictionary where keys are document names/types and values are document content
         """
         
         validation_prompt = f"""
-You are an expert document reviewer specializing in {claim_type} validation. Your task is to carefully compare a submitted application against a comprehensive set of rules and requirements.
+    You are an expert document reviewer specializing in {claim_type} validation. Your task is to carefully analyze multiple submitted documents against a comprehensive set of rules and requirements.
 
-<rules_document>
-{rules_text}
-</rules_document>
+    <rules_document>
+    {rules_text}
+    </rules_document>
 
-<submitted_application>
-{application_text}
-</submitted_application>
+    <submitted_documents>
+    {self._format_documents_for_prompt(documents_dict)}
+    </submitted_documents>
 
-Please analyze the submitted application against the rules document and provide a comprehensive validation report in the following JSON format:
+    Please analyze each submitted document individually against the rules document, then provide an overall assessment. Provide your response in the following JSON format:
 
-{{
-    "overall_status": "APPROVED" or "REJECTED" or "NEEDS_REVIEW",
-    "confidence_score": 0.0 to 1.0,
-    "compliance_summary": {{
-        "total_requirements_checked": number,
-        "requirements_met": number,
-        "requirements_failed": number,
-        "requirements_unclear": number
-    }},
-    "detailed_findings": [
-        {{
-            "requirement": "specific requirement from rules",
-            "status": "MET" or "FAILED" or "UNCLEAR" or "NOT_APPLICABLE",
-            "evidence": "specific text from application that addresses this requirement",
-            "explanation": "detailed explanation of why this requirement is met/failed/unclear",
-            "severity": "CRITICAL" or "MAJOR" or "MINOR"
+    {{
+        "individual_document_reports": [
+            {{
+                "document_name": "name/type of the document",
+                "document_status": "APPROVED" or "REJECTED" or "NEEDS_REVIEW",
+                "confidence_score": 0.0 to 1.0,
+                "compliance_summary": {{
+                    "total_requirements_checked": number,
+                    "requirements_met": number,
+                    "requirements_failed": number,
+                    "requirements_unclear": number
+                }},
+                "detailed_findings": [
+                    {{
+                        "requirement": "specific requirement from rules",
+                        "status": "MET" or "FAILED" or "UNCLEAR" or "NOT_APPLICABLE",
+                        "evidence": "specific text from document that addresses this requirement",
+                        "explanation": "detailed explanation of why this requirement is met/failed/unclear",
+                        "severity": "CRITICAL" or "MAJOR" or "MINOR"
+                    }}
+                ],
+                "missing_information": [
+                    "list of required information missing from this specific document"
+                ],
+                "recommendations": [
+                    "specific actionable recommendations for this document"
+                ],
+                "document_specific_notes": "observations specific to this document"
+            }}
+        ],
+        "overall_assessment": {{
+            "overall_status": "APPROVED" or "REJECTED" or "NEEDS_REVIEW",
+            "overall_confidence_score": 0.0 to 1.0,
+            "cross_document_compliance": {{
+                "total_documents_analyzed": number,
+                "documents_approved": number,
+                "documents_rejected": number,
+                "documents_needing_review": number
+            }},
+            "missing_documents": [
+                "list of required documents that are completely missing from submission"
+            ],
+            "cross_document_inconsistencies": [
+                {{
+                    "issue": "description of inconsistency between documents",
+                    "affected_documents": ["list of document names with the inconsistency"],
+                    "severity": "CRITICAL" or "MAJOR" or "MINOR",
+                    "recommendation": "how to resolve the inconsistency"
+                }}
+            ],
+            "overall_recommendations": [
+                "high-level actionable recommendations for the entire submission"
+            ],
+            "completeness_assessment": {{
+                "all_required_documents_present": true or false,
+                "all_required_information_present": true or false,
+                "ready_for_processing": true or false
+            }},
+            "additional_notes": "any other relevant observations about the overall submission"
         }}
-    ],
-    "missing_documents": [
-        "list of required documents that appear to be missing"
-    ],
-    "missing_information": [
-        "list of required information that appears to be missing"
-    ],
-    "recommendations": [
-        "specific actionable recommendations to address issues"
-    ],
-    "additional_notes": "any other relevant observations or concerns"
-}}
+    }}
 
-Guidelines for your analysis:
-1. Be thorough and systematic - check requirements mentioned in the rules
-2. Look for both explicit compliance (directly stated) and implicit compliance (can be reasonably inferred)
-3. Pay attention to document formatting, required fields, signatures, dates, and specific procedural requirements
-4. Do NOT hallucinate any required documents, all required documents for submission are listed explicitly in the rules document
-5. If information is ambiguous or unclear in either document, note this explicitly
-6. Pay special attention to EXIM Bank specific requirements and procedures
-7. Provide specific evidence from the application text when possible
-8. IMPORTANT - if unsure of the decision, lean toward accepting (false positives are better than false negatives here) as any applications that are accepted will still be manually reviewed
-9. The "Timeliness & Submission Checks" section from the rules document cannot be confirmed through the required documents - ignore the EOL requirement and continue with analysis
+    Guidelines for your analysis:
+    1. INDIVIDUAL DOCUMENT ANALYSIS:
+    - Analyze each document separately against applicable requirements
+    - Focus on what that specific document should contain according to the rules
+    - Note if a document is well-formatted and complete for its type
+    - Don't penalize a document for not containing information that should be in a different document
 
-Provide your response as valid JSON only, with no additional text or explanation outside the JSON structure.
-"""
+    2. CROSS-DOCUMENT ANALYSIS:
+    - Look for consistency in information across documents (dates, names, amounts, etc.)
+    - Identify if required documents are missing entirely
+    - Check if the combination of documents meets all overall requirements
+    - Verify that documents reference each other correctly where required
+
+    3. DECISION LOGIC:
+    - Individual documents can be APPROVED even if other documents have issues
+    - Overall status should reflect the weakest link in the chain
+    - If any critical requirements are unmet across all documents, overall status should be REJECTED
+    - Use NEEDS_REVIEW when there are ambiguities or minor issues that need human judgment
+
+    4. GENERAL GUIDELINES:
+    - Be thorough and systematic - check all requirements mentioned in the rules
+    - Look for both explicit compliance (directly stated) and implicit compliance (reasonably inferred)
+    - Pay attention to formatting, required fields, signatures, dates, and procedural requirements
+    - If information is ambiguous, note this explicitly
+    - Pay special attention to {claim_type} specific requirements and procedures
+    - Provide specific evidence from documents when possible
+    - If unsure, lean toward accepting (false positives better than false negatives) as accepted applications will be manually reviewed
+    - Ignore timeliness requirements that cannot be verified from document content alone
+
+    Provide your response as valid JSON only, with no additional text or explanation outside the JSON structure.
+    """
 
         try:
             messages = [{"role": "user", "content": validation_prompt}]
-            response_text = self._invoke_claude(messages, max_tokens=4000, temperature=0.1)
+            response_text = self._invoke_claude(messages, max_tokens=6000, temperature=0.1)
             
             print(f"Claude response text: {response_text[:1000]}...")  # Debug output
             
@@ -146,28 +196,46 @@ Provide your response as valid JSON only, with no additional text or explanation
             
             # Return a structured error response instead of failing
             return {
-                "overall_status": "ERROR",
-                "error": f"Failed to parse Claude response as JSON: {str(e)}",
-                "raw_response": response_text if 'response_text' in locals() else "No response",
-                "suggestions": [
-                    "The document may be too complex for automated processing",
-                    "Try submitting a clearer, more structured document",
-                    "Manual review may be required"
-                ]
+                "individual_document_reports": [],
+                "overall_assessment": {
+                    "overall_status": "ERROR",
+                    "error": f"Failed to parse Claude response as JSON: {str(e)}",
+                    "raw_response": response_text if 'response_text' in locals() else "No response",
+                    "suggestions": [
+                        "The documents may be too complex for automated processing",
+                        "Try submitting clearer, more structured documents",
+                        "Manual review may be required"
+                    ]
+                }
             }
         except Exception as e:
             print(f"Validation error: {str(e)}")
             return {
-                "overall_status": "ERROR", 
-                "error": f"Claude validation error: {str(e)}",
-                "suggestions": [
-                    "Check AWS Bedrock permissions",
-                    "Verify the model is available in your region",
-                    "Try again later if this is a temporary service issue"
-                ]
+                "individual_document_reports": [],
+                "overall_assessment": {
+                    "overall_status": "ERROR", 
+                    "error": f"Claude validation error: {str(e)}",
+                    "suggestions": [
+                        "Check AWS Bedrock permissions",
+                        "Verify the model is available in your region",
+                        "Try again later if this is a temporary service issue"
+                    ]
+                }
             }
-    
-    def test_connection(self) -> Dict[str, Any]:
+
+    def _format_documents_for_prompt(self, documents_dict):
+        """Helper method to format multiple documents for the prompt"""
+        formatted_docs = ""
+        for doc_name, doc_content in documents_dict.items():
+            formatted_docs += f"""
+    <document name="{doc_name}">
+    {doc_content}
+    </document>
+    """
+        return formatted_docs.strip()
+        
+
+def test_connection(self) -> Dict[str, Any]:
         """
         Test the Bedrock connection with a simple query.
         """
