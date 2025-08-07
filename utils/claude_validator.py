@@ -104,13 +104,15 @@ Please analyze the submitted application against the rules document and provide 
 }}
 
 Guidelines for your analysis:
-1. Be thorough and systematic - check every requirement mentioned in the rules
+1. Be thorough and systematic - check requirements mentioned in the rules
 2. Look for both explicit compliance (directly stated) and implicit compliance (can be reasonably inferred)
 3. Pay attention to document formatting, required fields, signatures, dates, and specific procedural requirements
-4. Consider both mandatory requirements (that would cause rejection) and best practices
+4. Do NOT hallucinate any required documents, all required documents for submission are listed explicitly in the rules document
 5. If information is ambiguous or unclear in either document, note this explicitly
 6. Pay special attention to EXIM Bank specific requirements and procedures
 7. Provide specific evidence from the application text when possible
+8. IMPORTANT - if unsure of the decision, lean toward accepting (false positives are better than false negatives here) as any applications that are accepted will still be manually reviewed
+9. The "Timeliness & Submission Checks" section from the rules document cannot be confirmed through the required documents - ignore the EOL requirement and continue with analysis
 
 Provide your response as valid JSON only, with no additional text or explanation outside the JSON structure.
 """
