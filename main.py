@@ -15,7 +15,7 @@ app = FastAPI(
 
 # Configuration
 S3_BUCKET = "ils-rule-documents"
-RULES_KEY = "EXIMRuleSeparateFiles.pdf"
+RULES_KEY = "EximRuleSeparateFiles.pdf"
 
 # Initialize Claude validator using Bedrock (no API key needed with IAM roles)
 claude_validator = ClaudeValidator(region_name="us-east-1", profile_name="mainils") #change profile name to None
