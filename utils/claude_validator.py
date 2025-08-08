@@ -235,21 +235,21 @@ class ClaudeValidator:
         return formatted_docs.strip()
         
 
-def test_connection(self) -> Dict[str, Any]:
-        """
-        Test the Bedrock connection with a simple query.
-        """
-        try:
-            messages = [{"role": "user", "content": "Hello, please respond with 'Connection successful'"}]
-            response = self._invoke_claude(messages, max_tokens=50, temperature=0.1)
-            
-            return {
-                "status": "connected",
-                "model": self.model_id,
-                "response": response
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+    def test_connection(self) -> Dict[str, Any]:
+            """
+            Test the Bedrock connection with a simple query.
+            """
+            try:
+                messages = [{"role": "user", "content": "Hello, please respond with 'Connection successful'"}]
+                response = self._invoke_claude(messages, max_tokens=50, temperature=0.1)
+                
+                return {
+                    "status": "connected",
+                    "model": self.model_id,
+                    "response": response
+                }
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "error": str(e)
+                }
